@@ -1,45 +1,56 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import cv2
 import numpy as np
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("input", help="Input video file.")
+parser.add_argument("haar_cascade", help="Opencv haar face detection cascade.")
+args = parser.parse_args()
 
 debug = True
 
 
-def helmet_detector(roi):
+def detect_helmet(roi):
     filtered_roi = cv2.GaussianBlur(roi, (5,5),0)
     hsv = cv2.cvtColor(filtered_roi, cv2.COLOR_BGR2HSV)
-    #hue_sum = np.sum(hsv[0]/(hsv.shape[0]*hsv.shape[1]))
     hsv_mean = np.mean(hsv[:, :, 0])
-    print(hsv_mean)
+    if hsv_mean > 10 and hsv_mean < 20:
+        return True
+    else:
+        return False
 
 
 if __name__ == '__main__':
 
-    sample_fname = '/home/al/projects/helmet_detector/samples/16474950.mp4'
-#    capture = cv2.VideoCapture(0)
+    sample_fname = args.input
+    full_path2cascade = args.haar_cascade
+
     capture = cv2.VideoCapture(sample_fname)
 
     while True:
-        ok, image = capture.read()
-#        face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-        full_path2cascade = '/home/al/github/opencv/data/haarcascades/haarcascade_frontalface_default.xml'
+        ret, image = capture.read()
         face_cascade = cv2.CascadeClassifier(full_path2cascade)
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+        faces = face_cascade.detectMultiScale(image, 1.3, 5)
         for (x, y, w, h) in faces:
-            #roi = img[y:y+h, x:x+w]
-            #TODO: run color detector on extended roi
-            helmet_height_fract = 0.2
+            helmet_height_fract = 0.3
             helmet_height = int(h*helmet_height_fract)
             roi_helmet = ((x, y), (x+w, y-helmet_height))
             if debug:
                 cv2.rectangle(image, (x, y), (x+w, y+h), (0, 255, 0), 2)
                 cv2.rectangle(image, roi_helmet[0], roi_helmet[1], (0, 0, 255), 1)
-            roi = image[x:x+w, y-helmet_height:y, :]
-            helmet_detector(roi)
+            roi = image[y-helmet_height:y, x:x+w :]
+            text_shift = 20
+            text_origin = (x, y + w + text_shift)
+            if detect_helmet(roi) == True:
+                cv2.putText(image, 'Helmet detected', text_origin,
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 140, 255), 2)
+            else:
+                cv2.putText(image, 'Alert: no helmet', text_origin,
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-        if ok:
+        if ret == True:
             cv2.imshow('Helmet_detector', image)
             if cv2.waitKey(1) & 0xFF == 27:
                 break
